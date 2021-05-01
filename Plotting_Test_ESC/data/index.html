@@ -1,0 +1,164 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Drone Tester in Javascript</title>
+<meta name="description" content="Welcome to Drone Tester"> 
+<link rel="stylesheet" type="text/css" href="style.css" />
+<link rel="stylesheet" type="text/css" href="jquery.jqplot.min.css" />
+
+<script src="jquery.min.js"></script>
+<script src="jquery.jqplot.min.js"></script>
+<script src="socket.io.js"></script>
+
+</head>
+<body class="slots">
+<div class="bd">
+	<div class="container">
+		<div class="status">
+			<div id="center">Data: <span id="socketdata"/></div>
+		</div>
+		<div id="chart1"></div>
+		<div id="chart2"></div>
+	</div>
+</div>
+</body>
+</html>
+
+<script>
+	// adding one data point to the chart data[] array
+	data = [];
+	data2 = [];
+	data.push([0,0]);
+	data2.push([0,0]);
+	var x =0;
+	var y=0;
+	var n = 11;
+	var loadPlot;
+	var rpmPlot;
+	var rpm = 0;
+	var load = 0;
+	var esc = 0;
+	var rpm2 = 0;
+	var esc2 = 0;
+	var rpmScale = 9000;
+	var loadScale = 3;
+	var powerScale = 100;
+
+	var options = {
+		title: "Drone Motor Thrust Profile",             
+        axes: {                  
+            xaxis: {                        
+               numberTicks: 11,
+            	min : 0,  
+                max: rpmScale,
+				label:"RPM"
+            },
+            yaxis: {
+				min:0, max: loadScale, numberTicks: 7,
+  	        	tickOptions:{formatString:'%.1f'}, label:"Thrust (lbf)"                
+            }             
+       },             
+       seriesDefaults: {                  
+           rendererOptions: { smooth: true}  }      
+       };      
+
+	   var options2 = {
+		title : "Power vs RPM", 
+		axes: {
+			xaxis: {
+				numberTicks: 11,
+				min: 0,
+				max: rpmScale,
+				label:"RPM"
+			},
+			yaxis: {
+				min: 0, max: powerScale, numberTicks: 11,
+				tickOptions: { formatString: '%.1f' }, label:"Power"
+			}
+		},
+		seriesDefaults: {
+			rendererOptions: { smooth: true }
+		}
+	};
+
+	// uses jqplot capability to show and manipulate charts http://www.jqplot.com/
+	function updateChart(value,chart) {
+		if(data.length > n-1){          
+				data.shift();       
+		}  
+
+		var mydata = value.split(","); 
+		loadStr = mydata[0]; 
+		rpmStr = mydata[1]; 
+		escStr = mydata[2];
+
+		load = parseFloat(loadStr);
+		esc = parseFloat(escStr);
+		rpm = parseFloat(rpmStr);     
+
+		data.push([rpm,load]);       
+		if (loadPlot) {      
+				loadPlot.destroy();       
+		}       
+
+		loadPlot.series[0].data = data;        
+		loadPlot = $.jqplot (chart, [data], options);
+	}
+
+	function updateChart2(value,chart) {
+		if(data2.length > n-1){          
+				data2.shift();       
+		}  
+
+		var mydata2 = value.split(",");  
+		rpmStr2 = mydata2[1]; 
+		escStr2 = mydata2[2];
+
+		esc2 = parseFloat(escStr2);
+		rpm2 = parseFloat(rpmStr2);     
+
+		data2.push([rpm2,esc2]);       
+		if (rpmPlot) {      
+				rpmPlot.destroy();       
+		}   
+
+		rpmPlot.series[0].data = data2;       
+		rpmPlot = $.jqplot (chart, [data2], options2);
+	}
+
+
+	// setting up the socket connection
+	wsServer = 'ws://' + location.hostname + ':81/'; // The local port of the arduino websocket 
+	var socket = new WebSocket(wsServer); // connect to the arduino websocket
+
+	/* This function is called whenever the arduino sketch broadcasts characters to the webSocket */
+	/*  e.g., webSocket.broadcastTXT(c, sizeof(c));
+	/* This simply writes the data sent into the <span id="socketdata"/> in the html page above */
+	/* Then it calls update chart sending the event data. */
+	socket.onmessage = function(event) {
+		if(event.data.length< 3){
+			loadPlot.destroy();
+			data = [];
+			data.push([0,0]);
+			loadPlot = $.jqplot ('chart1', data, options);
+
+			rpmPlot.destroy();
+			data2 = [];
+			data2.push([0,0]);
+			rpmPlot = $.jqplot ('chart2', data2, options2);
+		}
+		else{
+    	$('#socketdata').text(event.data);
+		updateChart(event.data,'chart1');
+		updateChart2(event.data,'chart2');
+		}
+	};
+
+	// Sets up two "jqplot" charts when the html page is "ready"
+	$(document).ready(function(){	  
+		loadPlot = $.jqplot ('chart1', [data], options); 
+  		//rpmPlot = $.jqplot ('chart2', [data2], options2);
+	});
+
+</script>

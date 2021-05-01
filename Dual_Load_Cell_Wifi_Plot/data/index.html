@@ -1,0 +1,146 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>Drone Tester in Javascript</title>
+	<meta name="description" content="Welcome to Drone Tester">
+	<link rel="stylesheet" type="text/css" href="style.css" />
+	<link rel="stylesheet" type="text/css" href="jquery.jqplot.min.css" />
+
+	<script src="jquery.min.js"></script>
+	<script src="jquery.jqplot.min.js"></script>
+	<script src="socket.io.js"></script>
+
+</head>
+
+<body class="slots">
+	<div class="bd">
+		<div class="container">
+			<div class="status">
+				<div id="center"> Load Cell Data: <span id="socketdata" /></div>
+			</div>
+			<div id="chart1"></div>
+			<div id="chart2"></div>
+		</div>
+	</div>
+</body>
+
+</html>
+
+<script>
+	// adding one data point to the chart data[] array
+	data = [];
+	data2 = [];
+	data.push([0,0]);
+	data2.push([0,0]);
+	var x = 0;
+	var n = 61;
+	var loadPlot;
+	var extraPlot;
+	var maxValue = 0;
+	var perviousMax=0; 
+	var maxLoad =0; 
+
+	var options = {
+		title: "Drone Thrust Profile",
+		axes: {
+			xaxis: {
+				numberTicks: 13,
+				min: 0,
+				max: 60,
+				label:"Samples"
+			},
+			yaxis: {
+				min: 0, max: .5, numberTicks: 6,
+				tickOptions: { formatString: '%.1f' }, label:"Thrust (lbf)"
+			}
+			//y2axis: {
+			//	min: 0, max: 100, numberTicks: 6,
+			//	tickOptions: { formatString: '%.1f' }, label:"dB"
+			//}
+		},
+		seriesDefaults: {
+			rendererOptions: { smooth: true }
+		}
+	};
+
+	var options2 = {
+		title : "Drone Thrust Profile", 
+		axes: {
+			xaxis: {
+				numberTicks: 13,
+				min: 0,
+				max: 60,
+				label:"Samples"
+			},
+			yaxis: {
+				min: 0, max: 400, numberTicks: 6,
+				tickOptions: { formatString: '%.1f' }, label:"Thrust (lbf)"
+			}
+		},
+		seriesDefaults: {
+			rendererOptions: { smooth: true }
+		}
+	};
+	// uses jqplot capability to show and manipulate charts http://www.jqplot.com/
+	function updateChart(value, chart) {
+		if (data.length > n - 1) {
+			data.shift();
+		}
+
+		var y = value;
+
+		data.push([x++, y]);
+		if (loadPlot) {
+			loadPlot.destroy();
+		}
+
+		maxValue = Math.max(value);
+		perviousMax = maxLoad;
+		if (maxValue < perviousMax){
+			maxLoad = perviousMax;	
+		}
+		else {
+			maxLoad = maxValue;
+		}
+
+		//data2.push([x,maxLoad]);
+
+		loadPlot.series[0].data = data;
+		//loadPlot.series[1].data = data2;
+		options.axes.xaxis.min = data[0][0];
+		options.axes.xaxis.max = options.axes.xaxis.min + n-1;
+		loadPlot = $.jqplot(chart, [data], options);
+/*
+		extraPlot.series[1].data = data2;
+		options.axes.xaxis.min = data[0][0];
+		options.axes.xaxis.max = options.axes.xaxis.min + n-1;
+		extraPlot = $.jqplot(chart, [data2], options2); 
+		*/
+	}
+
+
+	
+	// setting up the socket connection
+	wsServer = 'ws://' + location.hostname + ':81/'; // The local port of the arduino websocket 
+	var socket = new WebSocket(wsServer); // connect to the arduino websocket
+
+	/* This function is called whenever the arduino sketch broadcasts characters to the webSocket */
+	/*  e.g., webSocket.broadcastTXT(c, sizeof(c));
+	/* This simply writes the data sent into the <span id="socketdata"/> in the html page above */
+	/* Then it calls update chart sending the event data. */
+
+	socket.onmessage = function (event) {
+		$('#socketdata').text(event.data);
+		updateChart(event.data, 'chart1');
+		//updateChart(event.data, 'chart2');
+	};
+
+	// Sets up two "jqplot" charts when the html page is "ready"
+	$(document).ready(function () {
+		loadPlot = $.jqplot('chart1', [data], options);
+		//extraPlot = $.jqplot ('chart2', [data2], options2);
+	});
+
+</script>
